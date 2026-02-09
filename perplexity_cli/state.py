@@ -71,8 +71,18 @@ class StateManager:
         """Garante que o diretório de estado existe."""
         self.state_dir.mkdir(parents=True, exist_ok=True)
         
-    def save(self, state: RunState) -> None:
-        """Salva estado em arquivo JSON."""
+    def save(self, state: Optional[RunState] = None) -> None:
+        """Salva estado em arquivo JSON.
+        
+        Args:
+            state: Estado a salvar. Se None, usa self.state
+        """
+        if state is None:
+            state = self.state
+            
+        if state is None:
+            raise ValueError("Nenhum estado disponível para salvar")
+            
         self.ensure_state_dir()
         self.state = state
         
@@ -103,7 +113,7 @@ class StateManager:
             self.state.last_successful_checkpoint = checkpoint
             self.state.checkpoints[checkpoint] = True
         
-        self.save(self.state)
+        self.save()
     
     def add_command(self, cmd: str, result: str, output: str = "") -> None:
         """Adiciona comando executado ao histórico."""
@@ -117,7 +127,7 @@ class StateManager:
             "output": output[:500]  # Limita tamanho
         }
         self.state.commands_run.append(cmd_result)
-        self.save(self.state)
+        self.save()
     
     def set_error(self, where: str, message: str, log_excerpt: str = "") -> None:
         """Registra erro no estado."""
@@ -130,13 +140,13 @@ class StateManager:
             "message": message,
             "log_excerpt": log_excerpt[:1000]
         }
-        self.save(self.state)
+        self.save()
     
     def clear_error(self) -> None:
         """Limpa último erro."""
         if self.state:
             self.state.last_error = None
-            self.save(self.state)
+            self.save()
     
     def add_file_touched(self, filepath: str) -> None:
         """Adiciona arquivo modificado à lista."""
@@ -145,7 +155,7 @@ class StateManager:
             
         if filepath not in self.state.files_touched:
             self.state.files_touched.append(filepath)
-            self.save(self.state)
+            self.save()
     
     def create_initial_state(
         self,
