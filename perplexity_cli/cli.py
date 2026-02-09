@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""Perplexity Agent CLI - Interface principal."""
+"""Interface de linha de comando do Perplexity Agent CLI."""
 
 import sys
 import os
@@ -10,251 +9,296 @@ import click
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
-from rich.markdown import Markdown
 
-from .state import StateManager, RunState
-from .models import AgentMode, AGENT_PROFILES
+from .state import StateManager
 from .commands import CommandHandler
-from .utils import print_state, print_plan, print_welcome
+from .models import AgentMode
 from .nlp import IntentDetector
-
-
-console = Console()
+from .executor import ExecutionPipeline
 
 
 class PerplexityCLI:
-    """Classe principal do CLI."""
-    
-    def __init__(self, workspace: Optional[str] = None, auto_mode: bool = True):
-        self.workspace = workspace or os.getcwd()
-        self.state_manager = StateManager(self.workspace)
-        self.command_handler = CommandHandler(self.state_manager, console)
-        self.running = True
-        self.auto_mode = auto_mode  # Detecção automática de modo
+    def __init__(self, workspace: str, goal: Optional[str] = None, mode: Optional[str] = None, auto_mode: bool = True):
+        self.workspace = Path(workspace).resolve()
+        self.console = Console()
+        self.state_manager = StateManager(str(self.workspace))
+        self.command_handler = CommandHandler(self.state_manager, self.console)
+        self.intent_detector = IntentDetector()
+        self.executor = ExecutionPipeline(self.state_manager, self.console)
+        self.auto_mode = auto_mode
+        self.session_active = True
         
-    def start(self) -> None:
-        """Inicia o CLI em modo interativo."""
-        print_welcome(console)
-        
-        # Tenta carregar estado existente
-        state = self.state_manager.load()
-        
-        if state:
-            console.print(f"\n[green]✓[/green] Estado carregado: {state.goal}")
-            console.print(f"[cyan]Modo:[/cyan] {state.agent_mode}")
-            console.print(f"[cyan]Checkpoint:[/cyan] {state.current_checkpoint}")
-        else:
-            console.print("\n[yellow]✓ Sessão iniciada em modo AUTO[/yellow]")
-            console.print("[dim]Digite seu comando em linguagem natural ou use /help[/dim]")
-            console.print("\n[cyan]Exemplos:[/cyan]")
-            console.print("  • criar uma API REST em Python")
-            console.print("  • adicionar testes unitários")
-            console.print("  • corrigir bug no arquivo auth.py")
-            console.print("  • revisar o código")
-            console.print("  • documentar a API")
-        
-        self.interactive_loop()
-    
-    def interactive_loop(self) -> None:
-        """Loop principal de interação."""
-        while self.running:
-            try:
-                state = self.state_manager.state
-                
-                # Prompt dinâmico
-                if state and not self.auto_mode:
-                    prompt_text = f"[{state.agent_mode}] > "
-                else:
-                    prompt_text = "[AUTO] > "
-                
-                user_input = Prompt.ask(f"\n{prompt_text}").strip()
-                
-                if not user_input:
-                    continue
-                
-                # Processar comando
-                self.process_input(user_input)
-                
-            except KeyboardInterrupt:
-                console.print("\n\n[yellow]Interrompido pelo usuário[/yellow]")
-                self.running = False
-                break
-            except EOFError:
-                break
-            except Exception as e:
-                console.print(f"[red]Erro:[/red] {e}")
-                if os.getenv("DEBUG"):
-                    import traceback
-                    console.print(f"[dim]{traceback.format_exc()}[/dim]")
-    
-    def process_input(self, user_input: str) -> None:
-        """Processa entrada do usuário."""
-        # Comandos começam com /
-        if user_input.startswith("/"):
-            self.handle_command(user_input)
-        else:
-            # Entrada natural - processar com NLP
-            self.handle_natural_input(user_input)
-    
-    def handle_natural_input(self, text: str) -> None:
-        """Processa entrada em linguagem natural."""
-        
-        # Validar entrada mínima
-        if len(text) < 5:
-            console.print("[yellow]Comando muito curto. Seja mais específico.[/yellow]")
-            console.print("[dim]Exemplo: 'criar uma API REST', 'adicionar testes'[/dim]")
-            return
-        
-        # Detectar saudações e comandos inválidos
-        greetings = ["ola", "olá", "oi", "hello", "hi", "hey", "bom dia", "boa tarde", "boa noite"]
-        if text.lower().strip() in greetings:
-            console.print("\n[cyan]Olá! 👋[/cyan]")
-            console.print("[dim]Digite um comando de trabalho ou /help para ver opções.[/dim]")
-            console.print("\n[cyan]Exemplos:[/cyan]")
-            console.print("  • criar uma API REST")
-            console.print("  • adicionar testes ao projeto")
-            console.print("  • corrigir bug no auth.py")
-            return
-        
-        # Detectar modo apropriado
-        detected_mode = IntentDetector.detect_mode(text)
-        
-        # Extrair objetivo
-        goal = IntentDetector.extract_goal(text)
-        
-        # Mostrar detecção
-        console.print(f"\n[cyan]→ Modo detectado:[/cyan] [bold]{detected_mode.value}[/bold]")
-        console.print(f"[cyan]→ Objetivo:[/cyan] {goal}")
-        
-        # Criar ou atualizar estado
-        if not self.state_manager.state:
-            self.state_manager.create_initial_state(goal, detected_mode.value)
-        else:
-            # Atualizar goal e modo
+        # Inicializar estado
+        if not self.state_manager.load():
+            initial_goal = goal or "Sessão interativa"
+            initial_mode = mode or AgentMode.IMPLEMENTER.value
+            self.state_manager.create_initial_state(initial_goal, initial_mode)
+        elif goal:
             self.state_manager.state.goal = goal
-            self.state_manager.state.agent_mode = detected_mode.value
+            self.state_manager.save()
+    
+    def welcome(self):
+        """Mensagem de boas-vindas."""
+        mode_label = "[cyan]AUTO[/cyan]" if self.auto_mode else "MANUAL"
+        
+        self.console.print()
+        self.console.print(Panel(
+            f"[bold cyan]Perplexity Agent CLI[/bold cyan]\n\n"
+            f"Modo: {mode_label}\n"
+            f"Workspace: {self.workspace}\n\n"
+            f"[dim]Digite comandos naturais ou /help para ajuda[/dim]",
+            title="⚡ Sessão Iniciada",
+            border_style="cyan"
+        ))
+        self.console.print()
+    
+    def process_input(self, user_input: str) -> bool:
+        """Processa entrada do usuário.
+        
+        Returns:
+            True se deve continuar, False para sair
+        """
+        user_input = user_input.strip()
+        
+        # Input vazio
+        if not user_input:
+            return True
+        
+        # Comandos de saída
+        if user_input.lower() in ['exit', 'quit', 'sair', 'q']:
+            return False
+        
+        # Comandos com /
+        if user_input.startswith('/'):
+            return self.handle_command(user_input)
+        
+        # Linguagem natural
+        return self.handle_natural_input(user_input)
+    
+    def handle_command(self, command: str) -> bool:
+        """Trata comandos que começam com /.
+        
+        Args:
+            command: Comando com /
+            
+        Returns:
+            True para continuar
+        """
+        parts = command[1:].split(maxsplit=1)
+        cmd_name = parts[0].lower()
+        cmd_arg = parts[1] if len(parts) > 1 else ""
+        
+        if cmd_name == 'help':
+            self.command_handler.cmd_help(cmd_arg)
+        elif cmd_name == 'status':
+            self.command_handler.cmd_status(cmd_arg)
+        elif cmd_name == 'plan':
+            self.command_handler.cmd_plan(cmd_arg)
+        elif cmd_name == 'agent':
+            self.command_handler.cmd_agent(cmd_arg)
+        elif cmd_name == 'workspace':
+            self.command_handler.cmd_workspace(cmd_arg)
+        elif cmd_name == 'dry-run':
+            self.command_handler.cmd_dry_run(cmd_arg)
+        elif cmd_name == 'watch':
+            self.command_handler.cmd_watch(cmd_arg)
+        elif cmd_name == 'auto':
+            if cmd_arg.lower() == 'on':
+                self.auto_mode = True
+                self.console.print("[green]✓ Modo AUTO ativado[/green]")
+            elif cmd_arg.lower() == 'off':
+                self.auto_mode = False
+                self.console.print("[yellow]✓ Modo AUTO desativado[/yellow]")
+        else:
+            self.console.print(f"[red]Comando desconhecido:[/red] /{cmd_name}")
+            self.console.print("[dim]Use /help para ver comandos disponíveis[/dim]")
+        
+        return True
+    
+    def handle_natural_input(self, user_input: str) -> bool:
+        """Trata entrada em linguagem natural.
+        
+        Args:
+            user_input: Texto do usuário
+            
+        Returns:
+            True para continuar
+        """
+        # Detectar intenção
+        mode, goal = self.intent_detector.detect_intent_and_goal(user_input)
+        
+        # Atualizar modo se necessário
+        current_mode = self.state_manager.state.agent_mode
+        if mode.value != current_mode:
+            self.state_manager.state.agent_mode = mode.value
             self.state_manager.save()
         
-        # Mostrar perfil do agente
-        profile = AGENT_PROFILES[detected_mode]
-        console.print(f"\n[yellow]Foco:[/yellow] {profile.description}")
+        # Atualizar objetivo
+        self.state_manager.state.goal = goal
+        self.state_manager.save()
         
-        console.print("\n[green]✓ Pronto para executar![/green]")
-        console.print("[dim]Use /plan para ver o plano, /status para estado atual[/dim]")
-        console.print("[dim]Ou continue dando comandos naturais[/dim]")
-    
-    def handle_command(self, cmd: str) -> None:
-        """Processa comandos /."""
-        # Remover / inicial e dividir
-        parts = cmd[1:].split(maxsplit=1)
+        # Exibir detecção
+        self.console.print()
+        self.console.print(f"[cyan]→ Modo:[/cyan] {mode.value}")
+        self.console.print(f"[cyan]→ Objetivo:[/cyan] {goal}")
+        self.console.print()
         
-        # Validar se há comando
-        if not parts or not parts[0]:
-            console.print("[yellow]Digite um comando após /[/yellow]")
-            console.print("[cyan]Comandos disponíveis:[/cyan]")
-            console.print("  /help - Ver todos os comandos")
-            console.print("  /status - Ver estado atual")
-            console.print("  /plan - Ver plano")
-            console.print("  /workspace - Definir pasta de trabalho")
-            console.print("\n[dim]Ou digite em linguagem natural sem /[/dim]")
-            return
-        
-        command = parts[0].lower()
-        args = parts[1] if len(parts) > 1 else ""
-        
-        # Comando especial: modo manual
-        if command == "auto":
-            if args.lower() == "off":
-                self.auto_mode = False
-                console.print("[yellow]Modo AUTO desativado. Use /agent para trocar manualmente.[/yellow]")
-            else:
-                self.auto_mode = True
-                console.print("[green]Modo AUTO ativado. Agente será detectado automaticamente.[/green]")
-            return
-        
-        handlers = {
-            "agent": self.command_handler.cmd_agent,
-            "workspace": self.command_handler.cmd_workspace,
-            "status": self.command_handler.cmd_status,
-            "plan": self.command_handler.cmd_plan,
-            "resume": self.command_handler.cmd_resume,
-            "dry-run": self.command_handler.cmd_dry_run,
-            "apply": self.command_handler.cmd_apply,
-            "watch": self.command_handler.cmd_watch,
-            "undo": self.command_handler.cmd_undo,
-            "help": self.command_handler.cmd_help,
-            "exit": self.cmd_exit,
-            "quit": self.cmd_exit,
-        }
-        
-        handler = handlers.get(command)
-        if handler:
-            # Desativar auto_mode se trocar manualmente
-            if command == "agent":
-                self.auto_mode = False
-            handler(args)
+        # 🚀 EXECUTAR AUTOMATICAMENTE SE AUTO_MODE
+        if self.auto_mode:
+            self.execute_automatically(goal, mode)
         else:
-            console.print(f"[red]Comando desconhecido:[/red] /{command}")
-            console.print("Digite /help para ver comandos disponíveis.")
+            # Modo manual - apenas informa
+            self.show_agent_focus(mode)
+            self.console.print("\n[dim]Use /plan para ver o plano, /status para estado[/dim]")
+        
+        return True
     
-    def cmd_exit(self, args: str = "") -> None:
-        """Sai do CLI."""
-        console.print("\n[cyan]Até logo! 👋[/cyan]")
-        self.running = False
+    def execute_automatically(self, goal: str, mode: AgentMode):
+        """Executa tarefa automaticamente.
+        
+        Args:
+            goal: Objetivo a executar
+            mode: Modo do agente
+        """
+        self.console.print("[yellow]⏳ Executando automaticamente...[/yellow]\n")
+        
+        try:
+            # Gerar plano
+            plan_items = self._generate_plan(goal, mode)
+            
+            # Executar pipeline
+            self.console.print("[dim]1. Analisando workspace...[/dim]")
+            self.executor.inventory_repo()
+            
+            self.console.print("[dim]2. Criando plano...[/dim]")
+            self.executor.create_plan(plan_items)
+            
+            self.console.print("[dim]3. Executando etapas...[/dim]\n")
+            for item in plan_items:
+                success = self.executor.execute_step(
+                    item['step'],
+                    item['action'],
+                    item.get('checkpoint')
+                )
+                if not success:
+                    self.console.print("[yellow]⚠ Etapa falhou, continuando...[/yellow]")
+            
+            # Concluir
+            files_modified = [item.get('file', 'unknown') for item in plan_items]
+            next_steps = self._suggest_next_steps(mode)
+            
+            self.console.print()
+            self.console.print("[green bold]✓ Execução concluída![/green bold]\n")
+            
+            if next_steps:
+                self.console.print("[bold]Sugestões:[/bold]")
+                for i, step in enumerate(next_steps, 1):
+                    self.console.print(f"  {i}. {step}")
+            
+            self.console.print()
+            
+        except Exception as e:
+            self.console.print(f"[red]❌ Erro na execução:[/red] {e}")
+            self.console.print("[yellow]Tente um comando mais específico.[/yellow]\n")
+    
+    def _generate_plan(self, goal: str, mode: AgentMode) -> list:
+        """Gera plano baseado no objetivo."""
+        # Simplificado - em produção seria gerado por LLM
+        plan = [
+            {
+                'step': 1,
+                'action': f"Preparar: {goal}",
+                'checkpoint': 'CP1:prepare',
+                'file': 'preparation'
+            },
+            {
+                'step': 2,
+                'action': f"Executar: {goal}",
+                'checkpoint': 'CP2:execute',
+                'file': 'implementation'
+            },
+            {
+                'step': 3,
+                'action': "Validar resultado",
+                'checkpoint': 'CP3:validate',
+                'file': 'validation'
+            }
+        ]
+        return plan
+    
+    def _suggest_next_steps(self, mode: AgentMode) -> list:
+        """Sugere próximos passos."""
+        suggestions = {
+            AgentMode.ARCHITECT: ["Implementar arquitetura", "Revisar estrutura"],
+            AgentMode.IMPLEMENTER: ["Adicionar testes", "Documentar código"],
+            AgentMode.DEBUGGER: ["Executar testes", "Verificar correções"],
+            AgentMode.REVIEWER: ["Aplicar melhorias", "Validar qualidade"],
+            AgentMode.DOCUMENTER: ["Revisar docs", "Adicionar exemplos"],
+            AgentMode.OPS: ["Testar pipeline", "Fazer deploy"]
+        }
+        return suggestions.get(mode, ["Continuar desenvolvimento"])
+    
+    def show_agent_focus(self, mode: AgentMode):
+        """Mostra foco do agente."""
+        focus = {
+            AgentMode.ARCHITECT: "Define arquitetura e estrutura",
+            AgentMode.IMPLEMENTER: "Implementa código e alterações em arquivos",
+            AgentMode.DEBUGGER: "Investiga e corrige erros",
+            AgentMode.REVIEWER: "Revisa qualidade e padrões",
+            AgentMode.DOCUMENTER: "Cria e atualiza documentação",
+            AgentMode.OPS: "Configura CI/CD e automations"
+        }
+        self.console.print(f"[dim]Foco: {focus.get(mode, 'Tarefas gerais')}[/dim]")
+    
+    def run(self):
+        """Loop principal."""
+        self.welcome()
+        
+        prompt_label = "[cyan]AUTO[/cyan]" if self.auto_mode else "MANUAL"
+        
+        while self.session_active:
+            try:
+                user_input = Prompt.ask(f"[{prompt_label}] >", default="")
+                
+                should_continue = self.process_input(user_input)
+                
+                if not should_continue:
+                    break
+                
+            except KeyboardInterrupt:
+                self.console.print("\n\n[yellow]Sessão encerrada.[/yellow]")
+                break
+            except Exception as e:
+                self.console.print(f"\n[red]Erro:[/red] {e}")
+                import traceback
+                traceback.print_exc()
+        
+        self.console.print("\n[cyan]Até logo! 👋[/cyan]\n")
 
 
 @click.command()
-@click.option(
-    "--workspace",
-    "-w",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True),
-    help="Diretório de trabalho"
-)
-@click.option(
-    "--goal",
-    "-g",
-    help="Objetivo da sessão (modo legado, prefira linguagem natural)"
-)
-@click.option(
-    "--mode",
-    "-m",
-    type=click.Choice([m.value for m in AgentMode]),
-    help="Forçar modo específico (desativa AUTO)"
-)
-@click.option(
-    "--no-auto",
-    is_flag=True,
-    help="Desativar detecção automática de modo"
-)
-@click.version_option(version="0.1.0")
-def main(workspace: Optional[str], goal: Optional[str], mode: Optional[str], no_auto: bool) -> None:
-    """Perplexity Agent CLI - Sistema de agente com checkpoints.
-    
-    Modo padrão: AUTO - detecta automaticamente o agente baseado no que você digita.
-    
-    Exemplos:
-    
-        perplexity-cli
-        > criar uma API REST em Python
-        
-        perplexity-cli
-        > adicionar testes unitários
-        
-        perplexity-cli
-        > corrigir bug no arquivo auth.py
-    """
-    
-    auto_mode = not no_auto and mode is None
-    cli = PerplexityCLI(workspace, auto_mode=auto_mode)
-    
-    # Modo legado: goal fornecido
-    if goal:
-        mode_to_use = mode or AgentMode.ARCHITECT.value
-        cli.state_manager.create_initial_state(goal, mode_to_use)
-        cli.auto_mode = False
-    
-    cli.start()
+@click.option('--workspace', default='.', help='Diretório de trabalho')
+@click.option('--goal', default=None, help='Objetivo inicial')
+@click.option('--mode', default=None, help='Modo do agente')
+@click.option('--no-auto', is_flag=True, help='Desabilitar modo AUTO')
+@click.version_option(version='0.2.0')
+def main(workspace: str, goal: Optional[str], mode: Optional[str], no_auto: bool):
+    """Perplexity Agent CLI - Agente de engenharia de software."""
+    try:
+        cli = PerplexityCLI(
+            workspace=workspace,
+            goal=goal,
+            mode=mode,
+            auto_mode=not no_auto
+        )
+        cli.run()
+    except Exception as e:
+        console = Console()
+        console.print(f"[red]Erro fatal:[/red] {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
