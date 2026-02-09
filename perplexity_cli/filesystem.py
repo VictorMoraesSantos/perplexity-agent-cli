@@ -1,170 +1,171 @@
 """Operações de filesystem."""
 
 import os
-import shutil
 from pathlib import Path
-from typing import List, Optional, Dict
-import subprocess
-import hashlib
-
+from typing import List, Optional
 from rich.console import Console
+
+from .state import StateManager
 
 
 class FileSystemOps:
-    """Operações de sistema de arquivos."""
+    """Operações de sistema de arquivos com suporte a dry-run."""
     
-    def __init__(self, workspace: str, console: Console, dry_run: bool = False):
-        self.workspace = Path(workspace)
-        self.console = console
-        self.dry_run = dry_run
+    def __init__(self, state_manager: StateManager, console: Optional[Console] = None):
+        self.state_manager = state_manager
+        self.console = console or Console()
     
-    def read_file(self, filepath: str) -> Optional[str]:
-        """Lê arquivo."""
-        path = self.workspace / filepath
+    def _is_dry_run(self) -> bool:
+        """Verifica se está em modo dry-run."""
+        return self.state_manager.state.dry_run if self.state_manager.state else False
+    
+    def read_file(self, filepath: str) -> str:
+        """Lê conteúdo de um arquivo.
         
-        if not path.exists():
-            self.console.print(f"[red]Erro:[/red] Arquivo não existe: {filepath}")
-            return None
-        
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                content = f.read()
+        Args:
+            filepath: Caminho do arquivo
             
-            self.console.print(f"[green]✓[/green] Lido: {filepath} ({len(content)} bytes)")
-            return content
+        Returns:
+            Conteúdo do arquivo
+        """
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return f.read()
         except Exception as e:
             self.console.print(f"[red]Erro ao ler {filepath}:[/red] {e}")
-            return None
+            raise
     
     def write_file(self, filepath: str, content: str) -> bool:
-        """Escreve arquivo."""
-        path = self.workspace / filepath
+        """Escreve conteúdo em um arquivo.
         
-        if self.dry_run:
-            self.console.print(f"[yellow][DRY-RUN][/yellow] Escreveria: {filepath}")
+        Args:
+            filepath: Caminho do arquivo
+            content: Conteúdo a escrever
+            
+        Returns:
+            True se sucesso
+        """
+        if self._is_dry_run():
+            self.console.print(f"[yellow][DRY-RUN] Escreveria em:[/yellow] {filepath}")
+            self.console.print(f"[dim]Conteúdo: {len(content)} caracteres[/dim]")
             return True
         
         try:
             # Criar diretórios se necessário
-            path.parent.mkdir(parents=True, exist_ok=True)
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
             
-            with open(path, 'w', encoding='utf-8') as f:
+            with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(content)
             
-            self.console.print(f"[green]✓[/green] Escrito: {filepath}")
+            # Registrar arquivo modificado
+            self.state_manager.add_file_touched(filepath)
+            
+            self.console.print(f"[green]✓ Arquivo escrito:[/green] {filepath}")
             return True
+            
         except Exception as e:
             self.console.print(f"[red]Erro ao escrever {filepath}:[/red] {e}")
             return False
     
-    def list_dir(self, dirpath: str = ".", recursive: bool = False) -> List[str]:
-        """Lista diretório."""
-        path = self.workspace / dirpath
+    def list_dir(self, dirpath: str, recursive: bool = False) -> List[str]:
+        """Lista arquivos em um diretório.
         
-        if not path.exists():
-            self.console.print(f"[red]Erro:[/red] Diretório não existe: {dirpath}")
-            return []
-        
+        Args:
+            dirpath: Caminho do diretório
+            recursive: Se deve listar recursivamente
+            
+        Returns:
+            Lista de caminhos de arquivos
+        """
         try:
             if recursive:
                 files = []
-                for root, dirs, filenames in os.walk(path):
+                for root, _, filenames in os.walk(dirpath):
                     for filename in filenames:
-                        rel_path = os.path.relpath(
-                            os.path.join(root, filename),
-                            self.workspace
-                        )
-                        files.append(rel_path)
+                        files.append(os.path.join(root, filename))
                 return files
             else:
-                items = [item.name for item in path.iterdir()]
-                return items
+                return [
+                    os.path.join(dirpath, f)
+                    for f in os.listdir(dirpath)
+                    if os.path.isfile(os.path.join(dirpath, f))
+                ]
         except Exception as e:
             self.console.print(f"[red]Erro ao listar {dirpath}:[/red] {e}")
             return []
     
-    def grep(self, pattern: str, filepath: Optional[str] = None) -> Dict[str, List[str]]:
-        """Busca padrão em arquivos."""
-        results = {}
+    def create_dir(self, dirpath: str) -> bool:
+        """Cria um diretório.
+        
+        Args:
+            dirpath: Caminho do diretório
+            
+        Returns:
+            True se sucesso
+        """
+        if self._is_dry_run():
+            self.console.print(f"[yellow][DRY-RUN] Criaria diretório:[/yellow] {dirpath}")
+            return True
         
         try:
-            if filepath:
-                # Buscar em arquivo específico
-                cmd = ["grep", "-n", pattern, str(self.workspace / filepath)]
-            else:
-                # Buscar recursivamente
-                cmd = ["grep", "-rn", pattern, str(self.workspace)]
-            
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                cwd=self.workspace
-            )
-            
-            if result.returncode == 0:
-                lines = result.stdout.strip().split('\n')
-                for line in lines:
-                    if ':' in line:
-                        file_line = line.split(':', 1)
-                        file = file_line[0]
-                        if file not in results:
-                            results[file] = []
-                        results[file].append(line)
-            
-            return results
+            os.makedirs(dirpath, exist_ok=True)
+            self.console.print(f"[green]✓ Diretório criado:[/green] {dirpath}")
+            return True
         except Exception as e:
-            self.console.print(f"[red]Erro ao fazer grep:[/red] {e}")
-            return {}
+            self.console.print(f"[red]Erro ao criar {dirpath}:[/red] {e}")
+            return False
     
-    def run_command(self, cmd: str) -> tuple[int, str, str]:
-        """Executa comando."""
-        if self.dry_run:
-            self.console.print(f"[yellow][DRY-RUN][/yellow] Executaria: {cmd}")
-            return (0, "", "")
+    def delete_file(self, filepath: str) -> bool:
+        """Deleta um arquivo.
         
-        try:
-            result = subprocess.run(
-                cmd,
-                shell=True,
-                capture_output=True,
-                text=True,
-                cwd=self.workspace
-            )
+        Args:
+            filepath: Caminho do arquivo
             
-            return (result.returncode, result.stdout, result.stderr)
-        except Exception as e:
-            return (-1, "", str(e))
-    
-    def git_status(self) -> Optional[str]:
-        """Retorna git status."""
-        returncode, stdout, stderr = self.run_command("git status --short")
-        
-        if returncode == 0:
-            return stdout
-        else:
-            self.console.print(f"[yellow]Aviso:[/yellow] Git não disponível ou não é repo git")
-            return None
-    
-    def git_diff(self, filepath: Optional[str] = None) -> Optional[str]:
-        """Retorna git diff."""
-        cmd = "git diff" + (f" {filepath}" if filepath else "")
-        returncode, stdout, stderr = self.run_command(cmd)
-        
-        if returncode == 0:
-            return stdout
-        else:
-            return None
-    
-    def file_hash(self, filepath: str) -> Optional[str]:
-        """Calcula hash MD5 de arquivo."""
-        path = self.workspace / filepath
-        
-        if not path.exists():
-            return None
+        Returns:
+            True se sucesso
+        """
+        if self._is_dry_run():
+            self.console.print(f"[yellow][DRY-RUN] Deletaria:[/yellow] {filepath}")
+            return True
         
         try:
-            with open(path, 'rb') as f:
-                return hashlib.md5(f.read()).hexdigest()
-        except Exception:
-            return None
+            os.remove(filepath)
+            self.console.print(f"[green]✓ Arquivo deletado:[/green] {filepath}")
+            return True
+        except Exception as e:
+            self.console.print(f"[red]Erro ao deletar {filepath}:[/red] {e}")
+            return False
+    
+    def file_exists(self, filepath: str) -> bool:
+        """Verifica se arquivo existe.
+        
+        Args:
+            filepath: Caminho do arquivo
+            
+        Returns:
+            True se existe
+        """
+        return os.path.exists(filepath)
+    
+    def copy_file(self, src: str, dst: str) -> bool:
+        """Copia um arquivo.
+        
+        Args:
+            src: Arquivo origem
+            dst: Arquivo destino
+            
+        Returns:
+            True se sucesso
+        """
+        if self._is_dry_run():
+            self.console.print(f"[yellow][DRY-RUN] Copiaria:[/yellow] {src} -> {dst}")
+            return True
+        
+        try:
+            import shutil
+            shutil.copy2(src, dst)
+            self.console.print(f"[green]✓ Arquivo copiado:[/green] {src} -> {dst}")
+            return True
+        except Exception as e:
+            self.console.print(f"[red]Erro ao copiar:[/red] {e}")
+            return False

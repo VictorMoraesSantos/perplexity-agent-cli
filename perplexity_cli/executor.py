@@ -1,199 +1,193 @@
-"""Pipeline de execução em etapas com checkpoints."""
+"""Pipeline de execução A-E."""
 
-from typing import List, Dict, Optional, Callable
-from dataclasses import dataclass
+from typing import List, Dict, Any, Optional
 from rich.console import Console
-from rich.markdown import Markdown
-from rich.panel import Panel
 
 from .state import StateManager, RunState
-from .models import AgentMode, AGENT_PROFILES
-from .error_protocol import ErrorProtocol
-
-
-@dataclass
-class ExecutionStep:
-    """Passo de execução."""
-    name: str
-    description: str
-    action: Callable
-    checkpoint: Optional[str] = None
+from .models import AgentMode
 
 
 class ExecutionPipeline:
-    """Pipeline de execução em etapas (A-E)."""
+    """Pipeline estruturado de execução (Etapas A-E)."""
     
-    def __init__(self, state_manager: StateManager, console: Console):
+    def __init__(self, state_manager: StateManager, console: Optional[Console] = None):
         self.state_manager = state_manager
-        self.console = console
-        self.error_protocol = ErrorProtocol(state_manager, console)
+        self.state = state_manager.state
+        self.console = console or Console()
+        self.criteria: List[str] = []
+        self.plan: List[Dict[str, Any]] = []
     
-    def execute_task(self, task_description: str) -> bool:
-        """Executa tarefa completa seguindo pipeline A-E."""
-        state = self.state_manager.state
-        if not state:
-            self.console.print("[red]Erro:[/red] Nenhum estado carregado")
-            return False
+    def define_criteria(self, criteria: List[str]) -> None:
+        """Etapa A: Define critérios de sucesso.
         
-        self.console.print(f"\n[bold cyan]Iniciando tarefa:[/bold cyan] {task_description}\n")
-        
-        # Etapa A: Entendimento e critérios
-        if not self.step_a_understanding(task_description):
-            return False
-        
-        # Etapa B: Inventário
-        if not self.step_b_inventory():
-            return False
-        
-        # Etapa C: Plano
-        if not self.step_c_plan():
-            return False
-        
-        # Etapa D: Execução incremental
-        if not self.step_d_execution():
-            return False
-        
-        # Etapa E: Fechamento
-        self.step_e_closure()
-        
-        return True
+        Args:
+            criteria: Lista de critérios de DoD (Definition of Done)
+        """
+        self.criteria = criteria
+        self.console.print("[bold cyan]Etapa A - Critérios Definidos:[/bold cyan]")
+        for i, criterion in enumerate(criteria, 1):
+            self.console.print(f"  {i}. {criterion}")
     
-    def step_a_understanding(self, task: str) -> bool:
-        """Etapa A: Entendimento e critérios de pronto."""
-        self.console.print("[bold]Etapa A — Entendimento[/bold]\n")
+    def inventory_repo(self) -> Dict[str, Any]:
+        """Etapa B: Faz inventário do repositório.
         
-        state = self.state_manager.state
-        profile = AGENT_PROFILES[AgentMode(state.agent_mode)]
+        Returns:
+            Dicionário com estrutura do repo
+        """
+        self.console.print("\n[bold cyan]Etapa B - Inventário do Repositório:[/bold cyan]")
         
-        # Reescrever objetivo baseado no perfil do agente
-        self.console.print(f"[cyan]Modo:[/cyan] {state.agent_mode}")
-        self.console.print(f"[cyan]Foco:[/cyan] {', '.join(profile.focus[:3])}")
-        self.console.print(f"\n[bold]Objetivo reescrito:[/bold]")
-        self.console.print(f"  {task}\n")
+        import os
+        from pathlib import Path
         
-        # Critérios de pronto (exemplo genérico)
-        self.console.print("[bold]Critérios de Pronto (DoD):[/bold]")
-        criteria = self._generate_dod(state.agent_mode, task)
-        for criterion in criteria:
-            self.console.print(f"  • {criterion}")
+        workspace = Path(self.state_manager.workspace)
         
-        state.next_action = "Executar inventário do workspace"
-        self.state_manager.save(state)
-        
-        return True
-    
-    def step_b_inventory(self) -> bool:
-        """Etapa B: Inventário rápido."""
-        self.console.print("\n[bold]Etapa B — Inventário[/bold]\n")
-        
-        state = self.state_manager.state
-        
-        # Simulação - em implementação real, faria:
-        # - list_dir recursivo
-        # - git status
-        # - grep por termos relevantes
-        
-        self.console.print(f"[cyan]Workspace:[/cyan] {state.workspace}")
-        self.console.print("[yellow]Nota:[/yellow] Inventário automático será implementado")
-        
-        state.next_action = "Criar plano com checkpoints"
-        self.state_manager.save(state)
-        
-        return True
-    
-    def step_c_plan(self) -> bool:
-        """Etapa C: Criar plano com checkpoints."""
-        self.console.print("\n[bold]Etapa C — Planejamento[/bold]\n")
-        
-        state = self.state_manager.state
-        
-        # Gerar plano baseado no agente
-        plan = self._generate_plan(state.agent_mode, state.goal)
-        state.plan = plan
-        state.current_plan_step = 1
-        
-        self.console.print("[bold]Plano gerado:[/bold]")
-        for i, step in enumerate(plan, 1):
-            if step.startswith("CP"):
-                self.console.print(f"  {i}. [bold yellow]{step}[/bold yellow]")
-            else:
-                self.console.print(f"  {i}. {step}")
-        
-        state.next_action = "Executar primeiro passo do plano"
-        self.state_manager.save(state)
-        
-        return True
-    
-    def step_d_execution(self) -> bool:
-        """Etapa D: Execução incremental."""
-        self.console.print("\n[bold]Etapa D — Execução Incremental[/bold]\n")
-        
-        state = self.state_manager.state
-        
-        self.console.print("[yellow]Execução incremental com validação será implementada[/yellow]")
-        self.console.print("Fluxo esperado:")
-        self.console.print("  1. Ler arquivos-alvo")
-        self.console.print("  2. Aplicar mudanças (patch/write)")
-        self.console.print("  3. Validar (git diff, build, test)")
-        self.console.print("  4. Atualizar checkpoint")
-        self.console.print("  5. Repetir para próximo item")
-        
-        state.next_action = "Validar resultado e fechar tarefa"
-        self.state_manager.save(state)
-        
-        return True
-    
-    def step_e_closure(self) -> None:
-        """Etapa E: Fechamento."""
-        self.console.print("\n[bold]Etapa E — Fechamento[/bold]\n")
-        
-        state = self.state_manager.state
-        
-        # Resumo
-        self.console.print("[green]✓[/green] Tarefa concluída\n")
-        
-        if state.files_touched:
-            self.console.print(f"[bold]Arquivos alterados ({len(state.files_touched)}):[/bold]")
-            for f in state.files_touched:
-                self.console.print(f"  • {f}")
-        
-        self.console.print("\n[bold]Próximos passos:[/bold]")
-        self.console.print("  1. Revisar mudanças com /status")
-        self.console.print("  2. Testar funcionalidades")
-        self.console.print("  3. Fazer commit das alterações")
-        
-        state.next_action = "Aguardando nova tarefa"
-        self.state_manager.save(state)
-    
-    def _generate_dod(self, agent_mode: str, task: str) -> List[str]:
-        """Gera critérios de pronto baseado no agente."""
-        # Simplificado - em implementação real seria mais sofisticado
-        base_criteria = [
-            "Código compila sem erros",
-            "Testes passam",
-            "Documentação atualizada",
-        ]
-        
-        mode_specific = {
-            "ARCHITECT": ["Estrutura de pastas criada", "Interfaces definidas"],
-            "IMPLEMENTER": ["Features implementadas", "Código revisado"],
-            "DEBUGGER": ["Bug reproduzido", "Correção aplicada", "Regressão testada"],
-            "REVIEWER": ["Code review completo", "Sugestões documentadas"],
-            "DOCUMENTER": ["README atualizado", "Exemplos adicionados"],
-            "OPS": ["CI configurado", "Scripts funcionando"],
+        inventory = {
+            'folders': [],
+            'files': [],
+            'git_status': 'N/A'
         }
         
-        return base_criteria + mode_specific.get(agent_mode, [])
+        # Listar pastas
+        for root, dirs, files in os.walk(workspace):
+            # Ignorar pastas ocultas e comuns
+            dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ['node_modules', '__pycache__']]
+            
+            rel_root = os.path.relpath(root, workspace)
+            if rel_root != '.':
+                inventory['folders'].append(rel_root)
+            
+            for file in files:
+                if not file.startswith('.'):
+                    rel_path = os.path.join(rel_root, file)
+                    inventory['files'].append(rel_path if rel_root != '.' else file)
+        
+        self.console.print(f"  Pastas: {len(inventory['folders'])}")
+        self.console.print(f"  Arquivos: {len(inventory['files'])}")
+        
+        return inventory
     
-    def _generate_plan(self, agent_mode: str, goal: str) -> List[str]:
-        """Gera plano baseado no agente."""
-        # Simplificado - plano genérico
-        plan = [
-            "Analisar requisitos",
-            "Checkpoint: CP1:analysis-complete",
-            "Implementar mudanças",
-            "Checkpoint: CP2:implementation-done",
-            "Validar resultado",
-            "Checkpoint: CP3:validated",
-        ]
-        return plan
+    def create_plan(self, plan_items: List[Dict[str, Any]]) -> None:
+        """Etapa C: Cria plano com checkpoints.
+        
+        Args:
+            plan_items: Lista de itens do plano, cada um com:
+                - step: número da etapa
+                - action: ação a executar
+                - checkpoint: ID do checkpoint (ex: CP1:init)
+        """
+        self.plan = plan_items
+        
+        # Atualizar plano no estado
+        if self.state_manager.state:
+            self.state_manager.state.plan = [
+                f"{item['step']}. {item['action']} [CP: {item['checkpoint']}]"
+                for item in plan_items
+            ]
+            self.state_manager.save()
+        
+        self.console.print("\n[bold cyan]Etapa C - Plano Criado:[/bold cyan]")
+        for item in plan_items:
+            self.console.print(
+                f"  {item['step']}. {item['action']} "
+                f"[dim](Checkpoint: {item['checkpoint']})[/dim]"
+            )
+    
+    def execute_step(self, step: int, action: str, checkpoint: Optional[str] = None) -> bool:
+        """Etapa D: Executa uma etapa do plano.
+        
+        Args:
+            step: Número da etapa
+            action: Ação a executar
+            checkpoint: ID do checkpoint para marcar ao concluir
+            
+        Returns:
+            True se executado com sucesso
+        """
+        self.console.print(f"\n[bold cyan]Etapa D - Executando Passo {step}:[/bold cyan]")
+        self.console.print(f"  Ação: {action}")
+        
+        # Simulação - em implementação real executaria a ação
+        self.console.print("  [yellow]Execução simulada[/yellow]")
+        
+        # Atualizar checkpoint se fornecido
+        if checkpoint and self.state_manager.state:
+            self.state_manager.update_checkpoint(checkpoint, success=True)
+            self.console.print(f"  [green]✓ Checkpoint salvo: {checkpoint}[/green]")
+        
+        return True
+    
+    def close_execution(self, files_modified: List[str], next_steps: List[str]) -> None:
+        """Etapa E: Fecha execução e documenta resultados.
+        
+        Args:
+            files_modified: Lista de arquivos modificados
+            next_steps: Próximas ações sugeridas
+        """
+        self.console.print("\n[bold cyan]Etapa E - Fechamento:[/bold cyan]")
+        
+        # Atualizar estado
+        if self.state_manager.state:
+            for file in files_modified:
+                self.state_manager.add_file_touched(file)
+            
+            if next_steps:
+                self.state_manager.state.next_action = next_steps[0]
+                self.state_manager.save()
+        
+        # Exibir sumário
+        self.console.print("\n[green]✓ Execução concluída![/green]\n")
+        
+        if files_modified:
+            self.console.print("[bold]Arquivos modificados:[/bold]")
+            for file in files_modified:
+                self.console.print(f"  • {file}")
+        
+        if next_steps:
+            self.console.print("\n[bold]Próximos passos:[/bold]")
+            for i, step in enumerate(next_steps, 1):
+                self.console.print(f"  {i}. {step}")
+    
+    def run_full_pipeline(
+        self,
+        criteria: List[str],
+        plan_items: List[Dict[str, Any]]
+    ) -> bool:
+        """Executa pipeline completo A-E.
+        
+        Args:
+            criteria: Critérios de sucesso
+            plan_items: Itens do plano
+            
+        Returns:
+            True se pipeline executado com sucesso
+        """
+        try:
+            # Etapa A
+            self.define_criteria(criteria)
+            
+            # Etapa B
+            self.inventory_repo()
+            
+            # Etapa C
+            self.create_plan(plan_items)
+            
+            # Etapa D - executar cada item
+            for item in plan_items:
+                success = self.execute_step(
+                    item['step'],
+                    item['action'],
+                    item.get('checkpoint')
+                )
+                if not success:
+                    return False
+            
+            # Etapa E
+            modified_files = [item.get('file', 'unknown') for item in plan_items]
+            next_steps = ["Validar mudanças", "Executar testes"]
+            self.close_execution(modified_files, next_steps)
+            
+            return True
+            
+        except Exception as e:
+            self.console.print(f"[red]Erro no pipeline:[/red] {e}")
+            return False
