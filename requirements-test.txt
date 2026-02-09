@@ -1,0 +1,28 @@
+# Dependências para testes
+
+# Framework de testes
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.0
+pytest-xdist>=3.3.0  # Testes paralelos
+
+# Qualidade de código
+flake8>=6.0.0
+mypy>=1.4.0
+black>=23.0.0
+isort>=5.12.0
+
+# Cobertura
+coverage[toml]>=7.2.0
+
+# Relatórios
+pytest-html>=3.2.0
+pytest-json-report>=1.5.0
+
+# Utilitários de teste
+faker>=19.0.0  # Gerar dados fake
+freezer>=1.2.0  # Congelar tempo
+
+# Segurança
+bandit>=1.7.0  # Verifica vulnerabilidades
+safety>=2.3.0  # Verifica dependências inseguras
