@@ -7,6 +7,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler, FileSystemEvent
 
 from rich.console import Console
+from .state import StateManager
 
 
 class FileChangeHandler(FileSystemEventHandler):
@@ -71,18 +72,23 @@ class FileSystemWatcher:
     def __init__(
         self,
         workspace: str,
-        console: Console,
+        console: Optional[Console] = None,
+        state_manager: Optional[StateManager] = None,
         callback: Optional[Callable[[str, str], None]] = None
     ):
+        self.path = workspace  # Alias para path
         self.workspace = Path(workspace)
-        self.console = console
+        self.console = console or Console()
+        self.state_manager = state_manager
         self.callback = callback
         self.observer: Optional[Observer] = None
-        self.is_watching = False
+        self._is_watching = False
+        self.on_created = None
+        self.on_modified = None
     
     def start(self) -> bool:
         """Inicia watcher."""
-        if self.is_watching:
+        if self._is_watching:
             self.console.print("[yellow]Watcher já está ativo[/yellow]")
             return False
         
@@ -95,7 +101,7 @@ class FileSystemWatcher:
                 recursive=True
             )
             self.observer.start()
-            self.is_watching = True
+            self._is_watching = True
             
             self.console.print(f"[green]✓ Watcher ativo em:[/green] {self.workspace}")
             return True
@@ -106,13 +112,13 @@ class FileSystemWatcher:
     
     def stop(self) -> bool:
         """Para watcher."""
-        if not self.is_watching or not self.observer:
+        if not self._is_watching or not self.observer:
             return False
         
         try:
             self.observer.stop()
             self.observer.join()
-            self.is_watching = False
+            self._is_watching = False
             
             self.console.print("[green]✓ Watcher parado[/green]")
             return True
@@ -121,7 +127,20 @@ class FileSystemWatcher:
             self.console.print(f"[red]Erro ao parar watcher:[/red] {e}")
             return False
     
+    def is_running(self) -> bool:
+        """Verifica se watcher está rodando."""
+        return self._is_watching
+    
+    def should_ignore(self, path: str) -> bool:
+        """Verifica se arquivo deve ser ignorado."""
+        handler = FileChangeHandler(self.console)
+        return handler.should_ignore(path)
+    
     def __del__(self):
         """Destrutor - garante que observer seja parado."""
-        if self.is_watching:
+        if self._is_watching:
             self.stop()
+
+
+# Alias para compatibilidade com testes
+FileWatcher = FileSystemWatcher

@@ -147,3 +147,55 @@ class ErrorProtocol:
         self.console.print("  3. Pular este passo e continuar")
         self.console.print("  4. Abortar tarefa")
         self.console.print("\nUse comandos do CLI para prosseguir.")
+    
+    def capture_error(self, where: str, message: str, log_excerpt: str = "") -> None:
+        """Método auxiliar para capturar erro."""
+        self.state_manager.set_error(where, message, log_excerpt)
+    
+    def diagnose(self) -> dict:
+        """Retorna diagnóstico do último erro."""
+        if not self.state_manager.state or not self.state_manager.state.last_error:
+            return {'hypotheses': []}
+        
+        error = self.state_manager.state.last_error
+        results = self._run_auto_diagnostics(
+            error['where'],
+            error['message'],
+            error.get('log_excerpt', '')
+        )
+        
+        hypotheses = self._generate_hypotheses(error['message'], results)
+        
+        return {
+            'hypotheses': [
+                {
+                    'description': h.description,
+                    'likelihood': h.likelihood,
+                    'fix': h.fix_suggestion
+                }
+                for h in hypotheses
+            ]
+        }
+    
+    def propose_fix(self) -> Optional[dict]:
+        """Propõe correção para o erro."""
+        diagnosis = self.diagnose()
+        if not diagnosis['hypotheses']:
+            return None
+        
+        main_hypothesis = diagnosis['hypotheses'][0]
+        return {
+            'action': 'fix',
+            'suggestion': main_hypothesis['fix'],
+            'description': main_hypothesis['description']
+        }
+    
+    def apply_fix(self, fix: dict) -> bool:
+        """Aplica uma correção."""
+        # Implementação simplificada
+        self.console.print(f"[cyan]Aplicando:[/cyan] {fix.get('suggestion', 'correção')}")
+        return False  # Simula que precisa implementação manual
+
+
+# Alias para compatibilidade com testes
+ErrorHandler = ErrorProtocol
