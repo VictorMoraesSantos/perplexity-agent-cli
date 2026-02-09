@@ -3,6 +3,7 @@
 import pytest
 import tempfile
 from unittest.mock import Mock, patch
+from rich.console import Console
 
 from perplexity_cli.state import StateManager, RunState
 from perplexity_cli.error_protocol import ErrorProtocol, ErrorHandler
@@ -23,8 +24,13 @@ def state_manager(temp_workspace):
 
 
 @pytest.fixture
-def error_handler(state_manager):
-    return ErrorHandler(state_manager)
+def console_mock():
+    return Mock(spec=Console)
+
+
+@pytest.fixture
+def error_handler(state_manager, console_mock):
+    return ErrorHandler(state_manager, console_mock)
 
 
 class TestErrorHandler:
@@ -44,12 +50,10 @@ class TestErrorHandler:
         """Testa diagnóstico de erro."""
         error_handler.capture_error("test.py", "ImportError: No module named 'requests'")
         
-        # Executar diagnóstico
         diagnosis = error_handler.diagnose()
         
-        # Deve retornar hipóteses
         assert diagnosis is not None
-        assert 'hypotheses' in diagnosis or isinstance(diagnosis, list)
+        assert 'hypotheses' in diagnosis
     
     def test_propose_fix(self, error_handler):
         """Testa proposta de correção."""
@@ -58,18 +62,14 @@ class TestErrorHandler:
         fix = error_handler.propose_fix()
         
         assert fix is not None
-        assert isinstance(fix, (str, dict))
+        assert isinstance(fix, dict)
     
     def test_apply_fix(self, error_handler):
         """Testa aplicação de correção."""
         fix = {"action": "install", "package": "requests"}
         
-        # Deve tentar aplicar (pode falhar se não implementado)
-        try:
-            result = error_handler.apply_fix(fix)
-            assert result is not None
-        except NotImplementedError:
-            pytest.skip("apply_fix não implementado")
+        result = error_handler.apply_fix(fix)
+        assert isinstance(result, bool)
     
     def test_clear_error(self, error_handler, state_manager):
         """Testa limpeza de erro."""
@@ -85,7 +85,6 @@ class TestErrorProtocol:
     
     def test_error_workflow(self, state_manager):
         """Testa workflow completo de erro."""
-        # 1. Capturar erro
         state_manager.set_error(
             where="main.py:42",
             message="ValueError: invalid value",
@@ -93,11 +92,6 @@ class TestErrorProtocol:
         )
         
         assert state_manager.state.last_error is not None
-        
-        # 2. Diagnóstico seria executado pelo ErrorHandler
-        # 3. Propor correção
-        # 4. Aplicar
-        # 5. Limpar se sucesso
         
         state_manager.clear_error()
         assert state_manager.state.last_error is None

@@ -33,9 +33,8 @@ class TestFileSystemOps:
     
     def test_read_file(self, fs_ops, temp_workspace):
         """Testa leitura de arquivo."""
-        # Criar arquivo de teste
         test_file = Path(temp_workspace) / "test.txt"
-        test_file.write_text("conteúdo de teste")
+        test_file.write_text("conteúdo de teste", encoding='utf-8')
         
         content = fs_ops.read_file(str(test_file))
         assert content == "conteúdo de teste"
@@ -47,11 +46,11 @@ class TestFileSystemOps:
         fs_ops.write_file(str(test_file), "novo conteúdo")
         
         assert test_file.exists()
-        assert test_file.read_text() == "novo conteúdo"
+        content = test_file.read_text(encoding='utf-8')
+        assert content == "novo conteúdo"
     
     def test_list_dir(self, fs_ops, temp_workspace):
         """Testa listagem de diretório."""
-        # Criar alguns arquivos
         (Path(temp_workspace) / "file1.txt").touch()
         (Path(temp_workspace) / "file2.py").touch()
         
@@ -93,8 +92,7 @@ class TestFileSystemOps:
         
         test_file = Path(temp_workspace) / "dry_run.txt"
         
-        # Em dry-run, não deve criar o arquivo
         fs_ops.write_file(str(test_file), "teste")
         
-        # Dependendo da implementação, arquivo pode não existir
-        # assert not test_file.exists()
+        # Em dry-run, não cria o arquivo
+        assert not test_file.exists()

@@ -18,7 +18,7 @@ class TestCLIIntegration:
             text=True
         )
         assert result.returncode == 0
-        assert "0.1.0" in result.output or "version" in result.output.lower()
+        assert "0.1.0" in result.stdout or "version" in result.stdout.lower()
     
     def test_cli_help(self):
         """Testa comando --help."""
@@ -28,14 +28,9 @@ class TestCLIIntegration:
             text=True
         )
         assert result.returncode == 0
-        assert "workspace" in result.output.lower()
+        assert "workspace" in result.stdout.lower()
     
     @pytest.mark.slow
     def test_full_workflow(self):
         """Testa workflow completo."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # 1. Iniciar CLI com objetivo
-            # 2. Executar comandos
-            # 3. Verificar estado final
-            # (requer entrada interativa - mock complexo)
-            pytest.skip("Requer entrada interativa")
+        pytest.skip("Requer entrada interativa")
