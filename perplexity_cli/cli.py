@@ -89,7 +89,16 @@ class PerplexityCLI:
     
     def handle_command(self, cmd: str) -> None:
         """Processa comandos /."""
+        # Remover / inicial e dividir
         parts = cmd[1:].split(maxsplit=1)
+        
+        # Validar se há comando (previne erro ao digitar apenas /)
+        if not parts or not parts[0]:
+            console.print("[yellow]Digite um comando após /[/yellow]")
+            console.print("Exemplo: /help, /status, /agent IMPLEMENTER")
+            console.print("Digite /help para ver todos os comandos.")
+            return
+        
         command = parts[0].lower()
         args = parts[1] if len(parts) > 1 else ""
         
