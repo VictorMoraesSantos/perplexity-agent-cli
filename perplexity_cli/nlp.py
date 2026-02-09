@@ -42,6 +42,19 @@ class IntentDetector:
         ]
     }
     
+    def detect_intent_and_goal(self, text: str) -> Tuple[AgentMode, str]:
+        """Detecta modo e extrai objetivo do texto.
+        
+        Args:
+            text: Texto de entrada do usuário
+            
+        Returns:
+            Tupla (modo_detectado, objetivo_extraído)
+        """
+        mode = self.detect_mode(text)
+        goal = self.extract_goal(text)
+        return mode, goal
+    
     @classmethod
     def detect_mode(cls, text: str) -> AgentMode:
         """Detecta o modo de agente mais apropriado para o texto.
