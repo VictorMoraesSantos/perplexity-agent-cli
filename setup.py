@@ -25,8 +25,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "perplexity-cli=perplexity_cli.simple_cli:main",
-            "perplexity-cli-advanced=perplexity_cli.cli:main",
+            "perplexity-cli=perplexity_cli.cli:main",
         ]
     },
     python_requires=">=3.9",
