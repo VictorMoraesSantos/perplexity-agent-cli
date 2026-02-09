@@ -46,7 +46,12 @@ class PerplexityCLI:
         else:
             console.print("\n[yellow]✓ Sessão iniciada em modo AUTO[/yellow]")
             console.print("[dim]Digite seu comando em linguagem natural ou use /help[/dim]")
-            console.print("[dim]Exemplos: 'criar uma API REST', 'adicionar testes', 'corrigir bug no auth.py'[/dim]")
+            console.print("\n[cyan]Exemplos:[/cyan]")
+            console.print("  • criar uma API REST em Python")
+            console.print("  • adicionar testes unitários")
+            console.print("  • corrigir bug no arquivo auth.py")
+            console.print("  • revisar o código")
+            console.print("  • documentar a API")
         
         self.interactive_loop()
     
@@ -78,8 +83,9 @@ class PerplexityCLI:
                 break
             except Exception as e:
                 console.print(f"[red]Erro:[/red] {e}")
-                import traceback
-                console.print(f"[dim]{traceback.format_exc()}[/dim]")
+                if os.getenv("DEBUG"):
+                    import traceback
+                    console.print(f"[dim]{traceback.format_exc()}[/dim]")
     
     def process_input(self, user_input: str) -> None:
         """Processa entrada do usuário."""
@@ -92,6 +98,24 @@ class PerplexityCLI:
     
     def handle_natural_input(self, text: str) -> None:
         """Processa entrada em linguagem natural."""
+        
+        # Validar entrada mínima
+        if len(text) < 5:
+            console.print("[yellow]Comando muito curto. Seja mais específico.[/yellow]")
+            console.print("[dim]Exemplo: 'criar uma API REST', 'adicionar testes'[/dim]")
+            return
+        
+        # Detectar saudações e comandos inválidos
+        greetings = ["ola", "olá", "oi", "hello", "hi", "hey", "bom dia", "boa tarde", "boa noite"]
+        if text.lower().strip() in greetings:
+            console.print("\n[cyan]Olá! 👋[/cyan]")
+            console.print("[dim]Digite um comando de trabalho ou /help para ver opções.[/dim]")
+            console.print("\n[cyan]Exemplos:[/cyan]")
+            console.print("  • criar uma API REST")
+            console.print("  • adicionar testes ao projeto")
+            console.print("  • corrigir bug no auth.py")
+            return
+        
         # Detectar modo apropriado
         detected_mode = IntentDetector.detect_mode(text)
         
@@ -109,9 +133,7 @@ class PerplexityCLI:
             # Atualizar goal e modo
             self.state_manager.state.goal = goal
             self.state_manager.state.agent_mode = detected_mode.value
-        
-        # Salvar estado
-        self.state_manager.save()
+            self.state_manager.save()
         
         # Mostrar perfil do agente
         profile = AGENT_PROFILES[detected_mode]
@@ -129,8 +151,12 @@ class PerplexityCLI:
         # Validar se há comando
         if not parts or not parts[0]:
             console.print("[yellow]Digite um comando após /[/yellow]")
-            console.print("Exemplo: /help, /status, /agent IMPLEMENTER")
-            console.print("Ou digite em linguagem natural sem /")
+            console.print("[cyan]Comandos disponíveis:[/cyan]")
+            console.print("  /help - Ver todos os comandos")
+            console.print("  /status - Ver estado atual")
+            console.print("  /plan - Ver plano")
+            console.print("  /workspace - Definir pasta de trabalho")
+            console.print("\n[dim]Ou digite em linguagem natural sem /[/dim]")
             return
         
         command = parts[0].lower()
@@ -173,7 +199,7 @@ class PerplexityCLI:
     
     def cmd_exit(self, args: str = "") -> None:
         """Sai do CLI."""
-        console.print("\n[cyan]Até logo![/cyan]")
+        console.print("\n[cyan]Até logo! 👋[/cyan]")
         self.running = False
 
 
