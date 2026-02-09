@@ -15,6 +15,7 @@ from .commands import CommandHandler
 from .models import AgentMode
 from .nlp import IntentDetector
 from .executor import ExecutionPipeline
+from .agent_responses import AgentResponses
 
 
 class PerplexityCLI:
@@ -25,6 +26,7 @@ class PerplexityCLI:
         self.command_handler = CommandHandler(self.state_manager, self.console)
         self.intent_detector = IntentDetector()
         self.executor = ExecutionPipeline(self.state_manager, self.console)
+        self.responses = AgentResponses()
         self.auto_mode = auto_mode
         self.session_active = True
         
@@ -124,6 +126,20 @@ class PerplexityCLI:
         Returns:
             True para continuar
         """
+        self.console.print()
+        
+        # Verificar saudações
+        if self.responses.is_greeting(user_input):
+            self.console.print(f"[bold cyan]🤖 Perplexity:[/bold cyan] {self.responses.greeting()}")
+            self.console.print()
+            return True
+        
+        # Verificar agradecimentos
+        if self.responses.is_thanks(user_input):
+            self.console.print(f"[bold cyan]🤖 Perplexity:[/bold cyan] {self.responses.thanks_response()}")
+            self.console.print()
+            return True
+        
         # Detectar intenção
         mode, goal = self.intent_detector.detect_intent_and_goal(user_input)
         
@@ -137,8 +153,17 @@ class PerplexityCLI:
         self.state_manager.state.goal = goal
         self.state_manager.save()
         
-        # Exibir detecção
+        # 🤖 RESPOSTA DO AGENTE
+        confirmation = self.responses.confirm_task(mode, goal)
+        self.console.print(f"[bold cyan]🤖 Perplexity:[/bold cyan] {confirmation}")
+        
+        if self.auto_mode:
+            working_msg = self.responses.working_message()
+            self.console.print(f"[dim]{working_msg}[/dim]")
+        
         self.console.print()
+        
+        # Exibir detecção
         self.console.print(f"[cyan]→ Modo:[/cyan] {mode.value}")
         self.console.print(f"[cyan]→ Objetivo:[/cyan] {goal}")
         self.console.print()
@@ -148,8 +173,7 @@ class PerplexityCLI:
             self.execute_automatically(goal, mode)
         else:
             # Modo manual - apenas informa
-            self.show_agent_focus(mode)
-            self.console.print("\n[dim]Use /plan para ver o plano, /status para estado[/dim]")
+            self.console.print("[dim]Use /plan para ver o plano, /status para estado[/dim]")
         
         return True
     
@@ -160,7 +184,7 @@ class PerplexityCLI:
             goal: Objetivo a executar
             mode: Modo do agente
         """
-        self.console.print("[yellow]⏳ Executando automaticamente...[/yellow]\n")
+        self.console.print("[yellow]⏳ Executando...[/yellow]\n")
         
         try:
             # Gerar plano
@@ -184,14 +208,16 @@ class PerplexityCLI:
                     self.console.print("[yellow]⚠ Etapa falhou, continuando...[/yellow]")
             
             # Concluir
-            files_modified = [item.get('file', 'unknown') for item in plan_items]
             next_steps = self._suggest_next_steps(mode)
             
+            # 🤖 MENSAGEM DE CONCLUSÃO
             self.console.print()
-            self.console.print("[green bold]✓ Execução concluída![/green bold]\n")
+            completion = self.responses.completion_message()
+            self.console.print(f"[bold green]✓ {completion}[/bold green]\n")
             
             if next_steps:
-                self.console.print("[bold]Sugestões:[/bold]")
+                suggestion_intro = self.responses.suggestion_intro()
+                self.console.print(f"[bold cyan]🤖 Perplexity:[/bold cyan] {suggestion_intro}")
                 for i, step in enumerate(next_steps, 1):
                     self.console.print(f"  {i}. {step}")
             
@@ -199,11 +225,10 @@ class PerplexityCLI:
             
         except Exception as e:
             self.console.print(f"[red]❌ Erro na execução:[/red] {e}")
-            self.console.print("[yellow]Tente um comando mais específico.[/yellow]\n")
+            self.console.print("[bold cyan]🤖 Perplexity:[/bold cyan] Tente um comando mais específico.\n")
     
     def _generate_plan(self, goal: str, mode: AgentMode) -> list:
         """Gera plano baseado no objetivo."""
-        # Simplificado - em produção seria gerado por LLM
         plan = [
             {
                 'step': 1,
@@ -238,18 +263,6 @@ class PerplexityCLI:
         }
         return suggestions.get(mode, ["Continuar desenvolvimento"])
     
-    def show_agent_focus(self, mode: AgentMode):
-        """Mostra foco do agente."""
-        focus = {
-            AgentMode.ARCHITECT: "Define arquitetura e estrutura",
-            AgentMode.IMPLEMENTER: "Implementa código e alterações em arquivos",
-            AgentMode.DEBUGGER: "Investiga e corrige erros",
-            AgentMode.REVIEWER: "Revisa qualidade e padrões",
-            AgentMode.DOCUMENTER: "Cria e atualiza documentação",
-            AgentMode.OPS: "Configura CI/CD e automations"
-        }
-        self.console.print(f"[dim]Foco: {focus.get(mode, 'Tarefas gerais')}[/dim]")
-    
     def run(self):
         """Loop principal."""
         self.welcome()
@@ -273,7 +286,7 @@ class PerplexityCLI:
                 import traceback
                 traceback.print_exc()
         
-        self.console.print("\n[cyan]Até logo! 👋[/cyan]\n")
+        self.console.print("\n[bold cyan]🤖 Perplexity:[/bold cyan] Até logo! 👋\n")
 
 
 @click.command()
