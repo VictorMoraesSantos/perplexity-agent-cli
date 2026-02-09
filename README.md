@@ -2,7 +2,10 @@
 
 > Sistema de agente de engenharia de software com checkpoints e rastreabilidade total
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Tests](https://github.com/VictorMoraesSantos/perplexity-agent-cli/actions/workflows/tests.yml/badge.svg)](https://github.com/VictorMoraesSantos/perplexity-agent-cli/actions/workflows/tests.yml)
+[![Lint](https://github.com/VictorMoraesSantos/perplexity-agent-cli/actions/workflows/lint.yml/badge.svg)](https://github.com/VictorMoraesSantos/perplexity-agent-cli/actions/workflows/lint.yml)
+[![codecov](https://codecov.io/gh/VictorMoraesSantos/perplexity-agent-cli/branch/main/graph/badge.svg)](https://codecov.io/gh/VictorMoraesSantos/perplexity-agent-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## 🔍 Visão Geral
@@ -12,12 +15,15 @@ O **Perplexity Agent CLI** é um sistema avançado de agente de engenharia que o
 ### Principais Características
 
 - **✅ 6 Perfis de Agente**: ARCHITECT, IMPLEMENTER, DEBUGGER, REVIEWER, DOCUMENTER, OPS
+- **🤖 Modo AUTO**: Detecção automática de intenção via NLP
+- **💬 Linguagem Natural**: Digite comandos naturalmente, sem sintaxe complexa
 - **📦 Sistema de Checkpoints**: Retome de onde parou sem perder contexto
-- **📝 Estado Persistente**: Todo o progresso é salvo em JSON rastreável
+- **📝 Estado Persistente**: Todo o progresso é salvo em JSON rastreavel
 - **🔍 Pipeline Estruturado**: Etapas A-E garantem qualidade e consistência
 - **🚫 Protocolo de Erro**: Diagnóstico automático com hipóteses e correções
 - **👁️ Watcher de Filesystem**: Detecta mudanças externas em tempo real
 - **🧪 Modo Dry-Run**: Simule ações antes de executar
+- **✅ Cobertura de Testes 80%+**: Suite completa de testes com CI/CD
 
 ## 🚀 Instalação
 
@@ -30,9 +36,21 @@ cd perplexity-agent-cli
 
 ### Instalação local (desenvolvimento)
 
+**Linux/Mac:**
 ```bash
-pip install -e .
+python3 -m venv venv
+source venv/bin/activate
+pip install -e ".[dev]"
 ```
+
+**Windows PowerShell:**
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+```
+
+Veja [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md) para guia completo no Windows.
 
 ### Instalação via pip (quando publicado)
 
@@ -42,22 +60,46 @@ pip install perplexity-agent-cli
 
 ## 📚 Uso Rápido
 
-### Iniciar CLI interativo
+### 🌟 Modo AUTO (Recomendado)
+
+Digite comandos naturalmente - o agente detecta automaticamente o modo:
 
 ```bash
 perplexity-cli
+
+[AUTO] > criar uma API REST em Python
+→ Modo detectado: IMPLEMENTER
+→ Objetivo: Criar uma API REST em Python
+✓ Pronto para executar!
+
+[AUTO] > adicionar testes unitários
+→ Modo detectado: IMPLEMENTER
+→ Objetivo: Adicionar testes unitários
+
+[AUTO] > corrigir bug no arquivo auth.py
+→ Modo detectado: DEBUGGER
+→ Objetivo: Corrigir bug no arquivo auth.py
+
+[AUTO] > revisar o código
+→ Modo detectado: REVIEWER
+→ Objetivo: Revisar o código
+
+[AUTO] > documentar a API
+→ Modo detectado: DOCUMENTER
+→ Objetivo: Documentar a API
 ```
 
-### Iniciar com objetivo definido
+### Modo Legado (com flags)
 
 ```bash
+# Com objetivo definido
 perplexity-cli --goal "Implementar sistema de autenticação" --mode ARCHITECT
-```
 
-### Especificar workspace
-
-```bash
+# Com workspace específico
 perplexity-cli --workspace /caminho/para/projeto
+
+# Forçar modo manual (sem AUTO)
+perplexity-cli --no-auto
 ```
 
 ## 🛠️ Comandos Disponíveis
@@ -72,6 +114,7 @@ perplexity-cli --workspace /caminho/para/projeto
 | `/dry-run on\|off` | Ativa/desativa modo simulação | `/dry-run on` |
 | `/apply` | Aplica patches pendentes | `/apply` |
 | `/watch on\|off` | Liga/desliga watcher | `/watch on` |
+| `/auto on\|off` | Liga/desliga detecção AUTO | `/auto off` |
 | `/undo` | Desfaz últimas alterações | `/undo` |
 | `/help` | Exibe ajuda | `/help` |
 | `/exit` ou `/quit` | Sai do CLI | `/exit` |
@@ -80,6 +123,8 @@ perplexity-cli --workspace /caminho/para/projeto
 
 ### ARCHITECT
 **Foco**: Arquitetura, estrutura, padrões de design
+
+**Palavras-chave**: arquitetura, estrutura, estruturar, organizar, planejar, design, padrão
 
 ```bash
 /agent ARCHITECT
@@ -93,6 +138,8 @@ perplexity-cli --workspace /caminho/para/projeto
 ### IMPLEMENTER
 **Foco**: Codificação, features, refatoração
 
+**Palavras-chave**: implementar, criar, adicionar, desenvolver, codificar, escrever
+
 ```bash
 /agent IMPLEMENTER
 ```
@@ -104,6 +151,8 @@ perplexity-cli --workspace /caminho/para/projeto
 
 ### DEBUGGER
 **Foco**: Investigação de erros, diagnóstico, correções cirúrgicas
+
+**Palavras-chave**: corrigir, bug, erro, problema, falha, debugar, investigar
 
 ```bash
 /agent DEBUGGER
@@ -117,6 +166,8 @@ perplexity-cli --workspace /caminho/para/projeto
 ### REVIEWER
 **Foco**: Qualidade, consistência, segurança
 
+**Palavras-chave**: revisar, review, verificar, checar, validar, analisar código
+
 ```bash
 /agent REVIEWER
 ```
@@ -128,6 +179,8 @@ perplexity-cli --workspace /caminho/para/projeto
 
 ### DOCUMENTER
 **Foco**: Documentação, exemplos, comentários
+
+**Palavras-chave**: documentar, documentação, readme, docs, explicar
 
 ```bash
 /agent DOCUMENTER
@@ -141,6 +194,8 @@ perplexity-cli --workspace /caminho/para/projeto
 ### OPS
 **Foco**: CI/CD, Docker, automações, deploy
 
+**Palavras-chave**: deploy, ci, cd, docker, container, pipeline, build
+
 ```bash
 /agent OPS
 ```
@@ -149,6 +204,52 @@ perplexity-cli --workspace /caminho/para/projeto
 - Cria Dockerfiles
 - Scripts de build
 - Setup de hooks git
+
+## 🧪 Testes
+
+### Executar testes
+
+```bash
+# Todos os testes
+pytest
+
+# Com cobertura
+pytest --cov=perplexity_cli --cov-report=html
+
+# Testes específicos
+pytest tests/test_cli.py
+
+# Pular testes lentos
+pytest -m "not slow"
+```
+
+### Estrutura de testes
+
+```
+tests/
+├── test_cli.py              # Testes do CLI
+├── test_cli_complete.py     # Testes completos
+├── test_commands.py         # Testes dos comandos
+├── test_state_complete.py   # Testes de estado
+├── test_nlp_complete.py     # Testes NLP
+├── test_executor.py         # Testes do executor
+├── test_error_protocol.py   # Testes de erros
+├── test_filesystem.py       # Testes de filesystem
+├── test_watcher.py          # Testes do watcher
+├── test_edge_cases.py       # Casos extremos
+└── test_integration.py      # Testes E2E
+```
+
+Veja [TESTING.md](TESTING.md) para guia completo.
+
+### CI/CD
+
+O projeto usa GitHub Actions para:
+- ✅ Testes em Python 3.9, 3.10, 3.11, 3.12
+- ✅ Testes em Ubuntu, Windows, macOS
+- ✅ Linting com flake8, black, isort
+- ✅ Type checking com mypy
+- ✅ Cobertura com codecov
 
 ## 📊 Pipeline de Execução (Etapas A-E)
 
@@ -226,28 +327,6 @@ Quando um comando falha:
 5. **Reexecuta comando**
 6. Se falhar novamente: **para e pergunta ao usuário**
 
-### Exemplo de Fluxo
-
-```
-✗ ERRO DETECTADO
-Local: src/main.py:42
-Mensagem: ImportError: No module named 'requests'
-
-Executando diagnóstico automático...
-  1. Analisando stacktrace...
-  2. Verificando dependências...
-
-Hipóteses:
-
-1. [HIGH] Dependência não instalada
-   Sugestão: Adicionar 'requests' em requirements.txt e instalar
-
-2. [MEDIUM] Ambiente virtual incorreto
-   Sugestão: Verificar se venv está ativo
-
-Aplicando correção baseada na hipótese principal...
-```
-
 ## 👁️ Watcher de Filesystem
 
 Monitora mudanças externas em tempo real:
@@ -284,36 +363,42 @@ Para aplicar as mudanças:
 ## 📝 Exemplo Completo
 
 ```bash
-# 1. Iniciar CLI com objetivo
-perplexity-cli --goal "Adicionar testes unitários" --mode IMPLEMENTER
+# 1. Iniciar CLI (modo AUTO)
+perplexity-cli
 
-# 2. Verificar status
-/status
+# 2. Dar comando natural
+[AUTO] > criar testes unitários para o módulo auth
 
-# 3. Ver plano gerado
-/plan
+→ Modo detectado: IMPLEMENTER
+→ Objetivo: Criar testes unitários para o módulo auth
 
-# 4. Ativar dry-run para simular
-/dry-run on
+# 3. Verificar plano
+[AUTO] > /plan
 
-# 5. Executar (simulado)
-# ... ações do agente ...
+# 4. Ativar dry-run
+[AUTO] > /dry-run on
 
-# 6. Revisar mudanças propostas
-/status
+# 5. Continuar trabalhando naturalmente
+[AUTO] > adicionar teste para login
+[AUTO] > adicionar teste para logout
 
-# 7. Aplicar mudanças reais
-/dry-run off
-/apply
+# 6. Revisar
+[AUTO] > /status
 
-# 8. Trocar para modo REVIEWER
-/agent REVIEWER
+# 7. Aplicar
+[AUTO] > /dry-run off
+[AUTO] > /apply
 
-# 9. Revisar código
-# ... ações de review ...
+# 8. Trocar para reviewer
+[AUTO] > /agent REVIEWER
+
+# 9. Ou usar linguagem natural
+[AUTO] > revisar os testes criados
+
+→ Modo detectado: REVIEWER
 
 # 10. Sair
-/exit
+[AUTO] > /exit
 ```
 
 ## 🔒 Segurança
@@ -332,6 +417,7 @@ perplexity_cli/
 ├── commands.py          # Handlers de comandos
 ├── state.py             # Sistema de estado persistente
 ├── models.py            # Modelos e perfis de agente
+├── nlp.py               # Detecção de intenção (NLP)
 ├── executor.py          # Pipeline A-E
 ├── error_protocol.py    # Tratamento de erros
 ├── filesystem.py        # Operações de arquivos
@@ -345,10 +431,15 @@ perplexity_cli/
 - `rich` >= 13.0.0 - Output rico e colorido
 - `watchdog` >= 3.0.0 - Monitoramento de filesystem
 - `gitpython` >= 3.1.0 - Integração com Git
+- `pytest` >= 7.0.0 - Framework de testes
+- `pytest-cov` >= 4.0.0 - Cobertura de código
 
 ## 🛣️ Roadmap
 
-- [ ] Processamento de linguagem natural (LLM integration)
+- [x] Modo AUTO com detecção NLP
+- [x] Suite completa de testes (80%+ cobertura)
+- [x] CI/CD com GitHub Actions
+- [ ] Processamento de linguagem natural com LLM
 - [ ] Sistema de patches avançado
 - [ ] Undo/redo completo com git
 - [ ] Interface web (opcional)
@@ -358,11 +449,23 @@ perplexity_cli/
 
 ## 🤝 Contribuindo
 
+Contribuições são bem-vindas! Veja [CONTRIBUTING.md](CONTRIBUTING.md) para diretrizes.
+
+### Quick Start
+
 1. Fork o projeto
 2. Crie uma branch (`git checkout -b feature/nova-feature`)
-3. Commit suas mudanças (`git commit -am 'feat: nova feature'`)
-4. Push para a branch (`git push origin feature/nova-feature`)
-5. Abra um Pull Request
+3. Adicione testes para sua feature
+4. Execute `pytest` e garanta 80%+ cobertura
+5. Commit com Conventional Commits (`git commit -am 'feat: nova feature'`)
+6. Push para a branch (`git push origin feature/nova-feature`)
+7. Abra um Pull Request
+
+## 📜 Documentação Adicional
+
+- [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md) - Guia de instalação Windows
+- [TESTING.md](TESTING.md) - Guia completo de testes
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Guia de contribuição
 
 ## 📜 Licença
 
